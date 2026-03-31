@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import sharp from "sharp";
 import fs from "fs/promises";
 import path from "path";
-import { cuid } from "@paralleldrive/cuid2";
+import { createId } from "@paralleldrive/cuid2";
+const id = createId();
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR ?? "./uploads";
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/webp", "image/jpeg"];
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const filename = `logo_${cuid()}.png`;
+   const filename = `logo_${createId()}.png`;
     const logoDir = path.join(UPLOADS_DIR, "logos", company.id);
     await fs.mkdir(logoDir, { recursive: true });
 
