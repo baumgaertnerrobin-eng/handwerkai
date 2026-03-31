@@ -1,0 +1,372 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company       Company?
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  access_token      String? @db.Text
+  refresh_token     String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── COMPANY PROFILE ─────────────────────────────────────────────────────────
+
+model Company {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  name         String
+  trade        Trade
+  region       String
+  city         String
+  targetGroup  TargetGroup
+  tone         Tone     @default(PROFESSIONAL)
+  usps         String[] @default([])
+  hashtagStyle HashtagStyle @default(MIXED)
+  brandColors  Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trendSources      TrendSource[]
+  trendItems        TrendItem[]
+  generatedPosts    GeneratedPost[]
+  scheduledPosts    ScheduledPost[]
+  imageAssets       ImageAsset[]
+  logoAssets        LogoAsset[]
+  watermarkSettings WatermarkSettings?
+
+  @@index([userId])
+}
+
+enum Trade {
+  MALER
+  ELEKTRIKER
+  SANITAER
+  DACHDECKER
+  SCHREINER
+  ZIMMERER
+  FLIESENLEGER
+  HEIZUNG
+  SONSTIGES
+}
+
+enum TargetGroup {
+  PRIVAT
+  GEWERBE
+  BEIDE
+}
+
+enum Tone {
+  PROFESSIONAL
+  HERZLICH
+  MODERN
+  WERBEND
+}
+
+enum HashtagStyle {
+  MIXED
+  LOCAL
+  TRADE
+}
+
+// ─── TREND SOURCES ────────────────────────────────────────────────────────────
+
+model TrendSource {
+  id         String     @id @default(cuid())
+  companyId  String
+  url        String
+  type       SourceType
+  label      String?
+  keywords   String[]   @default([])
+  region     String?
+  isActive   Boolean    @default(true)
+  lastCrawl  DateTime?
+  crawlError String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  crawledContent CrawledContent[]
+  trendItems     TrendItem[]
+
+  @@index([companyId])
+  @@index([type])
+}
+
+enum SourceType {
+  WEBSITE
+  RSS_FEED
+  NEWS
+  BLOG
+  COMPETITOR
+  LOCAL_PORTAL
+}
+
+// ─── CRAWLED CONTENT ──────────────────────────────────────────────────────────
+
+model CrawledContent {
+  id          String   @id @default(cuid())
+  sourceId    String
+  url         String
+  title       String?
+  content     String   @db.Text
+  publishedAt DateTime?
+  crawledAt   DateTime @default(now())
+  hash        String   @unique
+
+  source         TrendSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  extractedTopics ExtractedTopic[]
+
+  @@index([sourceId])
+  @@index([crawledAt])
+}
+
+// ─── TREND ANALYSIS ───────────────────────────────────────────────────────────
+
+model ExtractedTopic {
+  id               String   @id @default(cuid())
+  crawledContentId String
+  topic            String
+  keywords         String[]
+  sentiment        Float?
+  relevanceScore   Float
+  extractedAt      DateTime @default(now())
+
+  crawledContent CrawledContent @relation(fields: [crawledContentId], references: [id], onDelete: Cascade)
+  trendItems     TrendItem[]
+
+  @@index([crawledContentId])
+}
+
+model TrendItem {
+  id               String      @id @default(cuid())
+  companyId        String
+  sourceId         String?
+  extractedTopicId String?
+  title            String
+  summary          String?     @db.Text
+  trendScore       Int
+  engagementScore  Int?
+  isLocal          Boolean     @default(false)
+  isSeasonal       Boolean     @default(false)
+  category         TrendCategory
+  detectedAt       DateTime    @default(now())
+  expiresAt        DateTime?
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source         TrendSource?   @relation(fields: [sourceId], references: [id])
+  extractedTopic ExtractedTopic? @relation(fields: [extractedTopicId], references: [id])
+  generatedPosts GeneratedPost[]
+
+  @@index([companyId])
+  @@index([trendScore])
+  @@index([detectedAt])
+}
+
+enum TrendCategory {
+  ENERGIE
+  FOERDERUNG
+  SAISONAL
+  LOKAL
+  FACHKRAEFTE
+  WETTBEWERB
+  ALLGEMEIN
+}
+
+// ─── GENERATED CONTENT ────────────────────────────────────────────────────────
+
+model GeneratedPost {
+  id          String   @id @default(cuid())
+  companyId   String
+  trendItemId String?
+  platform    Platform
+  content     String   @db.Text
+  hashtags    String[]
+  cta         String?
+  tone        Tone
+  imagePrompt String?  @db.Text
+  score       Int?
+  status      PostStatus @default(DRAFT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  trendItem     TrendItem?     @relation(fields: [trendItemId], references: [id])
+  scheduledPost ScheduledPost?
+  imageAssets   ImageAsset[]
+
+  @@index([companyId])
+  @@index([platform])
+  @@index([status])
+}
+
+enum Platform {
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+  TIKTOK
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+// ─── SCHEDULER ────────────────────────────────────────────────────────────────
+
+model ScheduledPost {
+  id              String        @id @default(cuid())
+  companyId       String
+  generatedPostId String        @unique
+  scheduledFor    DateTime
+  publishedAt     DateTime?
+  platform        Platform
+  status          ScheduleStatus @default(PENDING)
+  retries         Int           @default(0)
+  lastError       String?
+  createdAt       DateTime      @default(now())
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  generatedPost GeneratedPost @relation(fields: [generatedPostId], references: [id])
+
+  @@index([companyId])
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+enum ScheduleStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+// ─── SOCIAL AUTH ──────────────────────────────────────────────────────────────
+
+model SocialConnection {
+  id           String   @id @default(cuid())
+  companyId    String
+  platform     Platform
+  accessToken  String   @db.Text
+  refreshToken String?  @db.Text
+  expiresAt    DateTime?
+  accountId    String?
+  accountName  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, platform])
+  @@index([companyId])
+}
+
+// ─── IMAGES & WATERMARK ───────────────────────────────────────────────────────
+
+model ImageAsset {
+  id             String      @id @default(cuid())
+  companyId      String
+  generatedPostId String?
+  prompt         String?     @db.Text
+  originalUrl    String?
+  watermarkedUrl String?
+  storagePath    String
+  width          Int?
+  height         Int?
+  hasWatermark   Boolean     @default(false)
+  status         ImageStatus @default(PENDING)
+  createdAt      DateTime    @default(now())
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  generatedPost GeneratedPost? @relation(fields: [generatedPostId], references: [id])
+
+  @@index([companyId])
+}
+
+enum ImageStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model LogoAsset {
+  id          String   @id @default(cuid())
+  companyId   String
+  filename    String
+  storagePath String
+  mimeType    String
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  watermarkSettings WatermarkSettings?
+
+  @@index([companyId])
+}
+
+model WatermarkSettings {
+  id          String            @id @default(cuid())
+  companyId   String            @unique
+  logoAssetId String?           @unique
+  position    WatermarkPosition @default(BOTTOM_LEFT)
+  opacity     Float             @default(0.8)
+  sizePercent Int               @default(20)
+  isEnabled   Boolean           @default(true)
+  updatedAt   DateTime          @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  logoAsset LogoAsset? @relation(fields: [logoAssetId], references: [id])
+}
+
+enum WatermarkPosition {
+  TOP_LEFT
+  TOP_RIGHT
+  BOTTOM_LEFT
+  BOTTOM_RIGHT
+  CENTER
+}

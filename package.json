@@ -1,0 +1,37 @@
+{
+  "name": "handwerkai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@prisma/client": "^5.17.0",
+    "cheerio": "^1.0.0",
+    "next": "^15.0.0",
+    "next-auth": "^4.24.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7",
+    "sharp": "^0.33.5",
+    "xml2js": "^0.6.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18",
+    "@types/xml2js": "^0.4.14",
+    "prisma": "^5.17.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.9.3"
+  }
+}
